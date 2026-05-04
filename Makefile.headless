@@ -10,7 +10,7 @@ CFLAGS := -O1 -Wall
 ELF    := offact-tks.elf
 
 $(ELF): main.c offact.c
-	$(CC) $(CFLAGS) -o $@ $^ -lSceRegMgr
+	$(CC) $(CFLAGS) -o $@ $^ -lSceRegMgr -lSceUserService
 
 clean:
 	rm -f $(ELF)
