@@ -1,0 +1,16 @@
+PS5_PAYLOAD_SDK ?= /opt/ps5-payload-sdk
+
+ifdef PS5_PAYLOAD_SDK
+    include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
+else
+    $(error PS5_PAYLOAD_SDK is undefined)
+endif
+
+CFLAGS := -O1 -Wall
+ELF    := offact-tks.elf
+
+$(ELF): main.c offact.c
+	$(CC) $(CFLAGS) -o $@ $^ -lSceRegMgr
+
+clean:
+	rm -f $(ELF)
