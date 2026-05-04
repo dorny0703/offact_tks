@@ -2,6 +2,7 @@
    Based on https://github.com/ps5-payload-dev/offact by John Törnblom (GPL v3) */
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include "offact.h"
@@ -12,7 +13,27 @@ int sceUserServiceInitialize(void *params);
 int sceUserServiceTerminate(void);
 int sceUserServiceGetUserName(SceUserServiceUserId userId, char *name, size_t size);
 
+typedef struct {
+    int  type;
+    int  unk1;
+    char message[1024];
+    int  unk2;
+    int  unk3;
+} SceNotificationRequest;
+
+int sceKernelSendNotificationRequest(int, SceNotificationRequest *, size_t, int);
+
 #define SCE_USER_SERVICE_USER_NAME_MAX 128
+
+static void notify(const char *fmt, ...) {
+    SceNotificationRequest req = {0};
+    req.type = 0;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(req.message, sizeof(req.message), fmt, ap);
+    va_end(ap);
+    sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
+}
 
 static int read_hex32(const char *path, uint32_t *out) {
     FILE *f = fopen(path, "r");
@@ -44,25 +65,25 @@ int main(void) {
     uint64_t new_id = 0;
     int rc;
 
-    /* uid.txt = PS5 user UID (8-char hex, e.g. 10000001) */
     rc = read_hex32("/user/temp/uid.txt", &target_uid);
     if (rc != 0) {
         printf("[設定ID錯誤: 無法讀取 uid.txt]\n");
+        notify("設定ID錯誤：無法讀取 uid.txt");
         return 1;
     }
 
-    /* id.txt = new PSN account ID (16-char hex) */
     rc = read_hex64("/user/temp/id.txt", &new_id);
     if (rc == -1) {
         printf("[設定ID錯誤: 找不到 id.txt]\n");
+        notify("設定ID錯誤：找不到 id.txt");
         return 1;
     }
     if (rc < 0) {
         printf("[設定ID錯誤: id.txt 內容非16進制]\n");
+        notify("設定ID錯誤：id.txt 內容非16進制");
         return 1;
     }
 
-    /* get display name for the target UID via user service */
     sceUserServiceInitialize(NULL);
     char target_name[SCE_USER_SERVICE_USER_NAME_MAX + 1] = {0};
     rc = sceUserServiceGetUserName((SceUserServiceUserId)target_uid,
@@ -71,10 +92,10 @@ int main(void) {
 
     if (rc != 0 || target_name[0] == 0) {
         printf("[設定ID錯誤: 找不到使用者 0x%08x]\n", target_uid);
+        notify("設定ID錯誤：找不到使用者 0x%08x", target_uid);
         return 1;
     }
 
-    /* match display name against account registry slots 1-16 */
     char account_name[ACCOUNT_NAME_MAX];
     for (int n = 1; n <= ACCOUNT_NUMB_MAX; n++) {
         if (OffAct_GetAccountName(n, account_name) != 0) continue;
@@ -85,9 +106,11 @@ int main(void) {
         OffAct_SetAccountType(n, account_type);
         OffAct_SetAccountFlags(n, account_flags);
         printf("[設定ID成功，帳號 #%d (%s): 0x%016lx]\n", n, account_name, new_id);
+        notify("設定ID成功\n%s\n0x%016lx", account_name, new_id);
         return 0;
     }
 
     printf("[設定ID錯誤: 找不到帳號 \"%s\"]\n", target_name);
+    notify("設定ID錯誤：找不到帳號 \"%s\"", target_name);
     return 1;
 }
